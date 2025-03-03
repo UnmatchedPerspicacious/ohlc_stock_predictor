@@ -4,11 +4,11 @@ import yfinance as yf
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, LSTM, Dropout
+from tensorflow.keras.layers import Dense, LSTM
 import streamlit as st
 
 st.title("Stock Price Prediction using LSTM")
-st.write("This app predicts stock OHLC (Open, High, Low, Close) values using an LSTM model.")
+st.write("This app predicts stock OHLC (Open, High, Low, Close) values using a made on demand LSTM model.")
 st.sidebar.header("User Input")
 
 ticker = st.sidebar.text_input("Enter Stock Ticker (e.g., AAPL):")
@@ -24,11 +24,16 @@ def load_data(ticker, start_date, end_date):
     return data
 
 if not ticker or not start_date or not end_date:
-    st.write("Please enter a valid Stock Ticker, Start Date and End Date")
+    st.write("Please enter a valid Stock Ticker, Start Date and End Date.")
 
-else:
+elif start_date and end_date:
     try:
-        data = load_data(ticker, start_date, end_date)
+        start_dt = pd.to_datetime(start_date)
+        end_dt = pd.to_datetime(end_date)
+        if end_dt < start_dt + pd.DateOffset(years=1):
+            st.sidebar.error("Please enter a Start Date and End Date with atleast a one year differnce.")
+        else: 
+            data = load_data(ticker, start_date, end_date)
         if data is not None:
             st.write(f"### {ticker} Stock Data")
             st.write(data.tail())
@@ -44,6 +49,7 @@ else:
             time_step = 60
             X, y = create_dataset(scaled_data, time_step)
             X = X.reshape(X.shape[0], X.shape[1], 4)
+
             @st.cache_resource
             def build_and_train_model(X, y):
                 model = Sequential()
@@ -54,7 +60,7 @@ else:
                 model.compile(optimizer='adam', loss='mean_squared_error')
                 model.fit(X, y, batch_size=1, epochs=1, verbose=0)
                 return model
-
+            
             model = build_and_train_model(X, y)
             train_predict = model.predict(X)
             train_predict = scaler.inverse_transform(train_predict)
@@ -66,8 +72,8 @@ else:
             plt.xlabel("Date")
             plt.ylabel("Price (USD)")
             plt.legend()
-            st.pyplot(plt)
 
+            st.pyplot(plt)
             plt.figure(figsize=(10, 6))
             plt.plot(data['High'].index[time_step + 1:], data['High'].values[time_step + 1:], label='Actual High Price')
             plt.plot(data['High'].index[time_step + 1:], train_predict[:, 1], label='Predicted High Price')
@@ -105,7 +111,6 @@ else:
             future_predictions = scaler.inverse_transform(np.array(future_predictions))
             st.write("### Future Stock Price Predictions (Open, High, Low, Close)")
             future_dates = pd.date_range(data.index[-1], periods=future_days + 1, freq='B')[1:]
-
             plt.figure(figsize=(10, 6))
             plt.plot(future_dates, future_predictions[:, 0], label='Future Predicted Open Price', color='green')
             plt.title(f"{ticker} Future Open Price Prediction")
@@ -121,7 +126,6 @@ else:
             plt.ylabel("Price (USD)")
             plt.legend()
             st.pyplot(plt)
-
             plt.figure(figsize=(10, 6))
             plt.plot(future_dates, future_predictions[:, 2], label='Future Predicted Low Price', color='orange')
             plt.title(f"{ticker} Future Low Price Prediction")
@@ -129,7 +133,7 @@ else:
             plt.ylabel("Price (USD)")
             plt.legend()
             st.pyplot(plt)
-            
+
             plt.figure(figsize=(10, 6))
             plt.plot(future_dates, future_predictions[:, 3], label='Future Predicted Close Price', color='red')
             plt.title(f"{ticker} Future Close Price Prediction")
@@ -137,5 +141,8 @@ else:
             plt.ylabel("Price (USD)")
             plt.legend()
             st.pyplot(plt)
-    except ValueError:
-        st.sidebar.error("Please provide valid date format (YYYY-MM-DD) for Start and End Dates.")
+    except Exception as e:
+        pass
+
+        
+    
